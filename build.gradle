@@ -1,0 +1,79 @@
+import java.security.MessageDigest
+
+plugins {
+    id 'java'
+    id 'application'
+    // https://github.com/johnrengelman/shadow
+    id 'com.github.johnrengelman.shadow' version '6.1.0'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // https://github.com/caoccao/Javet/
+    implementation 'com.caoccao.javet:javet:0.8.3'
+
+    // https://github.com/rhuss/jolokia
+    implementation 'org.jolokia:jolokia-core:1.6.2'
+}
+
+mainClassName = 'me.ivanyu.jmxviewer.App'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDirs('js/')
+            include('index.js', 'node_modules/**')
+        }
+    }
+}
+
+processResources {
+    doLast {
+        assert processResources.outputs.files.size() == 1
+        def mainResources = processResources.outputs.files.first()
+        def jsDir = new File(mainResources, 'js')
+
+        ant.move file: "${mainResources}/index.js", todir: "${jsDir}"
+        ant.move file: "${mainResources}/node_modules", todir: "${jsDir}"
+
+        def sha1 = MessageDigest.getInstance('SHA-256')
+
+        fileTree(jsDir).visit {
+            if (it.file.isFile()) {
+                // Files are expected to be small.
+                sha1.update(it.file.toPath().readBytes())
+            }
+        }
+        def hexString = new StringBuilder()
+        for (b in sha1.digest()) {
+            hexString.append(String.format('%01x', b & 0xFF));
+        }
+        new File(jsDir, 'checksum.txt').text = hexString
+    }
+}
+
+jar {
+    manifest {
+        attributes(
+                'Class-Path': configurations.compileClasspath.collect { it.getName() }.join(' '),
+                'Main-Class': mainClassName
+        )
+    }
+}
+
+compileJava {
+    options.with {
+        compilerArgs.addAll([
+                '--add-exports', 'jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED',
+                '--add-exports', 'jdk.attach/sun.tools.attach=ALL-UNNAMED'
+        ])
+    }
+}
