@@ -18,8 +18,8 @@ package me.ivanyu.jmxviewer;
 import com.caoccao.javet.exceptions.JavetException;
 import com.caoccao.javet.interop.NodeRuntime;
 import com.caoccao.javet.interop.V8Host;
-import com.caoccao.javet.node.modules.NodeModuleModule;
 import com.caoccao.javet.utils.JavetCallbackContext;
+import com.caoccao.javet.values.primitive.V8ValueString;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 import com.sun.tools.attach.VirtualMachineDescriptor;
@@ -34,9 +34,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 
 public class App {
     private static void printUsageAndExit() {
@@ -94,8 +94,8 @@ public class App {
         }
     }
 
-    private static void run(final String vmDisplayName, final MBeanServerConnection conn) throws JavetException, IOException, URISyntaxException {
-        final String jsRoot = prepareJS();
+    private static void run(final String vmDisplayName, final MBeanServerConnection conn) throws JavetException, IOException {
+        final File jsSctipt = prepareJS();
 
         final List<JavetCallbackContext> javetCallbackContexts = new ArrayList<>();
         final MbeansCallbacks mbeansCallbacks = new MbeansCallbacks(conn);
@@ -105,70 +105,32 @@ public class App {
                     nodeRuntime.getGlobalObject().setFunctions(mbeansCallbacks)
             );
 
-            final File nodeModules = new File(jsRoot, "node_modules/");
-            nodeRuntime.getNodeModule(NodeModuleModule.class).setRequireRootDirectory(nodeModules.toPath());
+            nodeRuntime.getGlobalObject().set("__dirname", new V8ValueString(jsSctipt.getParent()));
 
-            nodeRuntime.getExecutor(new File(jsRoot, "index.js")).executeVoid();
-
-            nodeRuntime.await();
-            javetCallbackContexts.forEach(c -> nodeRuntime.removeCallbackContext(c.getHandle()));
+            try {
+                nodeRuntime.getExecutor(jsSctipt).executeVoid();
+                nodeRuntime.await();
+            } finally {
+                javetCallbackContexts.forEach(c -> nodeRuntime.removeCallbackContext(c.getHandle()));
+            }
         }
     }
 
-    private static String prepareJS() throws IOException, URISyntaxException {
+    private static File prepareJS() throws IOException {
         final var sourceFile = App.class.getProtectionDomain()
                 .getCodeSource()
                 .getLocation();
 
         final boolean isJar = sourceFile.getFile().endsWith(".jar");
         if (isJar) {
-            final var jsChecksum = new String(
-                    Objects.requireNonNull(App.class.getResourceAsStream("/js/checksum.txt")).readAllBytes()
-            );
-
-            final String tmpPath = System.getProperty("java.io.tmpdir");
-            final String userName = System.getProperty("user.name");
-            final File tmpJsDir = new File(tmpPath, "jmxviewer-" + userName + "-" + jsChecksum);
-            final File marker = new File(tmpJsDir, "MARKER");
-
-            System.out.println("Extracting JS files into " + tmpJsDir);
-            System.out.println("Exists: " + marker.exists());
-            if (!marker.exists()) {
-                deleteDir(tmpJsDir);
-                extractJs(new File(sourceFile.getFile()), tmpJsDir);
-                marker.createNewFile();
+            final Path tmpBundleJs = Files.createTempFile("jmxviewer-bundle-", ".js");
+            try (final InputStream is = Objects.requireNonNull(App.class.getResourceAsStream("/bundle.js"))) {
+                Files.copy(is, tmpBundleJs, StandardCopyOption.REPLACE_EXISTING);
             }
-            return new File(tmpJsDir, "js").toString();
+            tmpBundleJs.toFile().deleteOnExit();
+            return tmpBundleJs.toFile();
         } else {
-            return "js";
-        }
-    }
-
-    private static void extractJs(final File file, File tmpJsDir) throws IOException {
-        final ZipFile zipFile = new ZipFile(file);
-        final Enumeration<? extends ZipEntry> entries = zipFile.entries();
-        while (entries.hasMoreElements()) {
-            final ZipEntry entry = entries.nextElement();
-            if (!entry.isDirectory() && entry.getName().startsWith("js/")) {
-                final File destFile = new File(tmpJsDir, entry.getName());
-                destFile.getParentFile().mkdirs();
-                try (final InputStream is = zipFile.getInputStream(entry)) {
-                    Files.copy(is, destFile.toPath());
-                }
-            }
-        }
-    }
-
-    private static void deleteDir(final File dir) {
-        if (dir.exists()) {
-            for (final File file : dir.listFiles()) {
-                if (file.isDirectory()) {
-                    deleteDir(file);
-                } else {
-                    file.delete();
-                }
-            }
-            dir.delete();
+            return new File("js", "bundle.js");
         }
     }
 }
