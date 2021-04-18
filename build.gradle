@@ -42,6 +42,12 @@ jar {
     }
 }
 
+shadowJar {
+    // Remove the Windows DLLs and V8 version.
+    exclude 'libjavet-*.dll'
+    exclude 'libjavet-v8-*.so'
+}
+
 compileJava {
     options.with {
         compilerArgs.addAll([
