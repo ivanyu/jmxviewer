@@ -1,3 +1,4 @@
 /.dev_mode.js
 /node_modules/
 /package-lock.json
+/bundle.js

@@ -1,5 +1,3 @@
-import java.security.MessageDigest
-
 plugins {
     id 'java'
     id 'application'
@@ -30,33 +28,8 @@ sourceSets {
     main {
         resources {
             srcDirs('js/')
-            include('index.js', 'node_modules/**')
+            include('bundle.js')
         }
-    }
-}
-
-processResources {
-    doLast {
-        assert processResources.outputs.files.size() == 1
-        def mainResources = processResources.outputs.files.first()
-        def jsDir = new File(mainResources, 'js')
-
-        ant.move file: "${mainResources}/index.js", todir: "${jsDir}"
-        ant.move file: "${mainResources}/node_modules", todir: "${jsDir}"
-
-        def sha1 = MessageDigest.getInstance('SHA-256')
-
-        fileTree(jsDir).visit {
-            if (it.file.isFile()) {
-                // Files are expected to be small.
-                sha1.update(it.file.toPath().readBytes())
-            }
-        }
-        def hexString = new StringBuilder()
-        for (b in sha1.digest()) {
-            hexString.append(String.format('%01x', b & 0xFF));
-        }
-        new File(jsDir, 'checksum.txt').text = hexString
     }
 }
 
