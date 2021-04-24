@@ -2,42 +2,98 @@ var blessed = require('blessed');
 var contrib = require('blessed-contrib');
 
 function parseMbeansList(mbeans) {
-    const result = {};
+    mbeans = mbeans.map(x => parseMbean(x['objectName']));
 
+    var result = {};
     for (let mbean of mbeans) {
-        mbean = mbean['objectName'];
-        var parts = mbean.split(':');
+        const [mbeanOriginal, domain, properties] = mbean;
 
-        const domain = parts[0];
-        if (!(domain in result)) {
-            result[domain] = {children: {}, extended: true};
+        if (!result.hasOwnProperty(domain)) {
+            result[domain] = {children: {}};
         }
 
-        const fullName = parts[1];
+        var currentNode = result[domain];
 
-        parts = fullName.split(',');
-        var type = null;
-        var name = null;
-        for (let part of parts) {
-            if (part.startsWith('type=')) {
-                type = part.substring('type='.length);
-            } else if (part.startsWith('name=')) {
-                name = part.substring('name='.length);
+        for (let property of properties) {
+            if (!currentNode.children.hasOwnProperty(property)) {
+                currentNode.children[property] = {children: {}};
             }
+            currentNode = currentNode.children[property];
         }
-
-        if (!(type in result[domain].children)) {
-            result[domain].children[type] = {children: {}};
-        }
-
-        if (name !== null && !(name in result[domain].children[type].children)) {
-            result[domain].children[type].children[name] = {children: {}, mbean: mbean};
-        } else {
-            result[domain].children[type].mbean = mbean;
-        }
+        currentNode.mbean = mbeanOriginal;
     }
 
+    const surrogateRoot = {children: result};
+    sortChildrenRecursive(surrogateRoot);
+    result = surrogateRoot.children;
+
+    markCompleteMbeanNodes(result);
+
     return result;
+}
+
+function parseMbean(mbean) {
+    const [domain, propertyString] = mbean.split(':');
+
+    var propertiesArr = []
+    for (let property of propertyString.split(',')) {
+        propertiesArr.push(property.split('='));
+    }
+
+    propertiesArr.sort(function(a, b) {
+        const [aName, aValue] = a;
+        const [bName, bValue] = b;
+
+        // 'type' is always first, 'name' is always second, the rest is alphabetically
+        if (aName === 'type') {
+            return -1;
+        }
+        if (bName === 'type') {
+            return 1;
+        }
+
+        if (aName === 'name') {
+            return -1;
+        }
+        if (bName === 'name') {
+            return 1;
+        }
+
+        return aName.localeCompare(bName);
+    });
+
+
+    var cutPoint = 0;
+    for (cutPoint = 0; cutPoint < propertiesArr.length; cutPoint++) {
+        if (propertiesArr[cutPoint][0] !== 'type' && propertiesArr[cutPoint][0] !== 'name') {
+            break;
+        }
+    }
+    propertiesArr = propertiesArr.map(p => p[0] + '=' + p[1]);
+    const rest = propertiesArr.splice(cutPoint).join(',');
+    if (rest) {
+        propertiesArr.push(rest);
+    }
+
+    return [mbean, domain, propertiesArr];
+}
+
+function sortChildrenRecursive(root) {
+    const sortedChildren = {};
+    for (let key of Object.keys(root.children).sort()) {
+        sortedChildren[key] = root.children[key];
+        sortChildrenRecursive(sortedChildren[key]);
+    }
+    root.children = sortedChildren;
+}
+
+function markCompleteMbeanNodes(mbeansTree) {
+    for (let key in mbeansTree) {
+        if (mbeansTree[key].hasOwnProperty('mbean') && Object.keys(mbeansTree[key].children).length > 0) {
+            mbeansTree[key].name = key + " #";
+        }
+        markCompleteMbeanNodes(mbeansTree[key].children);
+    }
 }
 
 const mbeansTree = parseMbeansList(JSON.parse(listMbeans()));
