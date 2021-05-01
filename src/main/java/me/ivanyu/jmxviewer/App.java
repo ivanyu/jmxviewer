@@ -1,10 +1,10 @@
 package me.ivanyu.jmxviewer;
 
-import com.caoccao.javet.exceptions.JavetException;
-import com.caoccao.javet.interop.NodeRuntime;
-import com.caoccao.javet.interop.V8Host;
-import com.caoccao.javet.utils.JavetCallbackContext;
-import com.caoccao.javet.values.primitive.V8ValueString;
+import com.googlecode.lanterna.graphics.AbstractTheme;
+import com.googlecode.lanterna.graphics.PropertyTheme;
+import com.googlecode.lanterna.screen.Screen;
+import com.googlecode.lanterna.screen.TerminalScreen;
+import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 import com.sun.tools.attach.VirtualMachineDescriptor;
@@ -14,20 +14,16 @@ import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.*;
+import java.util.Map;
+import java.util.Properties;
 
-public class App {
+public final class App {
     private static void printUsageAndExit() {
         System.err.println("Usage:");
         System.err.println("app <pid>");
-        System.exit(5);
+        System.exit(1);
     }
 
     private static void errorAndExit(final String message) {
@@ -35,10 +31,11 @@ public class App {
         System.exit(1);
     }
 
-    public static void main(String[] args) throws IOException, AttachNotSupportedException, JavetException, URISyntaxException {
+    public static void main(final String[] args) throws IOException, AttachNotSupportedException {
         if (args.length != 1) {
             printUsageAndExit();
         }
+
         final int pid;
         try {
             pid = Integer.parseInt(args[0]);
@@ -67,55 +64,49 @@ public class App {
         final HotSpotVirtualMachine hsvm = (HotSpotVirtualMachine) vm;
         hsvm.executeJCmd("ManagementAgent.start_local");
 
-        final Properties props = vm.getAgentProperties();
-        final String jmxUrl = props.getProperty("com.sun.management.jmxremote.localConnectorAddress");
+        final String vmDisplayName = vmDescriptor.displayName();
 
+        final var jmxUrl = new JMXServiceURL(
+                vm.getAgentProperties().getProperty("com.sun.management.jmxremote.localConnectorAddress"));
         vm.detach();
 
-        try (final JMXConnector jmxConnector = JMXConnectorFactory.newJMXConnector(new JMXServiceURL(jmxUrl), Map.of())) {
+        try (final JMXConnector jmxConnector = JMXConnectorFactory.newJMXConnector(jmxUrl, Map.of())) {
             jmxConnector.connect();
             final MBeanServerConnection conn = jmxConnector.getMBeanServerConnection();
-            run(vmDescriptor.displayName(), conn);
+            startGui(pid, vmDisplayName, conn);
         }
     }
 
-    private static void run(final String vmDisplayName, final MBeanServerConnection conn) throws JavetException, IOException {
-        final File jsSctipt = prepareJS();
+    private static void startGui(final int pid, final String vmDisplayName,
+                                 final MBeanServerConnection conn) throws IOException {
+        final var defaultTerminalFactory = new DefaultTerminalFactory();
+        Screen screen = null;
+        try {
+            final var terminal = defaultTerminalFactory.createTerminal();
+            screen = new TerminalScreen(terminal);
+            screen.startScreen();
+            terminal.setCursorVisible(false);
 
-        final List<JavetCallbackContext> javetCallbackContexts = new ArrayList<>();
-        final MbeansCallbacks mbeansCallbacks = new MbeansCallbacks(conn);
+            final GUI gui = new GUI(screen, pid, vmDisplayName, conn);
+//            gui.setTheme(LanternaThemes.getRegisteredTheme("businessmachine"));
+//            gui.setTheme(LanternaThemes.getRegisteredTheme("blaster"));
+            gui.setTheme(getTheme());
 
-        try (final NodeRuntime nodeRuntime = V8Host.getNodeInstance().createV8Runtime()) {
-            javetCallbackContexts.addAll(
-                    nodeRuntime.getGlobalObject().setFunctions(mbeansCallbacks)
-            );
-
-            nodeRuntime.getGlobalObject().set("__dirname", new V8ValueString(jsSctipt.getParent()));
-
-            try {
-                nodeRuntime.getExecutor(jsSctipt).executeVoid();
-                nodeRuntime.await();
-            } finally {
-                javetCallbackContexts.forEach(c -> nodeRuntime.removeCallbackContext(c.getHandle()));
+            gui.start();
+        } finally {
+            if (screen != null) {
+                screen.clear();
+                screen.close();
             }
         }
     }
 
-    private static File prepareJS() throws IOException {
-        final var sourceFile = App.class.getProtectionDomain()
-                .getCodeSource()
-                .getLocation();
-
-        final boolean isJar = sourceFile.getFile().endsWith(".jar");
-        if (isJar) {
-            final Path tmpBundleJs = Files.createTempFile("jmxviewer-bundle-", ".js");
-            try (final InputStream is = Objects.requireNonNull(App.class.getResourceAsStream("/bundle.js"))) {
-                Files.copy(is, tmpBundleJs, StandardCopyOption.REPLACE_EXISTING);
-            }
-            tmpBundleJs.toFile().deleteOnExit();
-            return tmpBundleJs.toFile();
-        } else {
-            return new File("js", "bundle.js");
+    private static AbstractTheme getTheme() throws IOException {
+        final var properties = new Properties();
+        try (final InputStream is = App.class.getClassLoader()
+                .getResourceAsStream("jmxviewer-theme.properties")) {
+            properties.load(is);
         }
+        return new PropertyTheme(properties);
     }
 }

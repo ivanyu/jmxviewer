@@ -10,8 +10,8 @@ repositories {
 }
 
 dependencies {
-    // https://github.com/caoccao/Javet/
-    implementation 'com.caoccao.javet:javet:0.8.3'
+    // https://github.com/mabe02/lanterna
+    implementation 'com.googlecode.lanterna:lanterna:3.1.1'
 
     // https://github.com/rhuss/jolokia
     implementation 'org.jolokia:jolokia-core:1.6.2'
@@ -24,15 +24,6 @@ java {
     targetCompatibility = JavaVersion.VERSION_11
 }
 
-sourceSets {
-    main {
-        resources {
-            srcDirs('js/')
-            include('bundle.js')
-        }
-    }
-}
-
 jar {
     manifest {
         attributes(
@@ -43,9 +34,6 @@ jar {
 }
 
 shadowJar {
-    // Remove the Windows DLLs and V8 version.
-    exclude 'libjavet-*.dll'
-    exclude 'libjavet-v8-*.so'
 }
 
 compileJava {
