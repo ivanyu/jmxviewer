@@ -15,7 +15,10 @@
  */
 package me.ivanyu.jmxviewer;
 
+import com.googlecode.lanterna.TerminalTextUtils;
+import com.googlecode.lanterna.graphics.ThemeDefinition;
 import com.googlecode.lanterna.gui2.AbstractListBox;
+import com.googlecode.lanterna.gui2.TextGUIGraphics;
 import com.googlecode.lanterna.input.KeyStroke;
 
 import java.security.InvalidParameterException;
@@ -40,6 +43,26 @@ final class TreeBox<TN extends TreeNode<TN>> extends AbstractListBox<TN, TreeBox
                     prefix += "  ";
                 }
                 return prefix + item.label();
+            }
+
+            @Override
+            public void drawItem(final TextGUIGraphics graphics, final TreeBox<TN> listBox, final int index, final TN item, final boolean selected, final boolean focused) {
+                final ThemeDefinition themeDefinition = listBox.getTheme().getDefinition(AbstractListBox.class);
+                // Here's the main difference to the standard renderer: we have three possible states and three styles.
+                if (!selected) {
+                    graphics.applyThemeStyle(themeDefinition.getNormal());
+                } else if (focused) {
+                    graphics.applyThemeStyle(themeDefinition.getActive());
+                } else {
+                    graphics.applyThemeStyle(themeDefinition.getSelected());
+                }
+
+                String label = getLabel(listBox, index, item);
+                label = TerminalTextUtils.fitString(label, graphics.getSize().getColumns());
+                while(TerminalTextUtils.getColumnWidth(label) < graphics.getSize().getColumns()) {
+                    label += " ";
+                }
+                graphics.putString(0, 0, label);
             }
         });
     }
