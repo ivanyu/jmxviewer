@@ -88,10 +88,7 @@ public final class App {
             terminal.setCursorVisible(false);
 
             final GUI gui = new GUI(screen, pid, vmDisplayName, conn);
-//            gui.setTheme(LanternaThemes.getRegisteredTheme("businessmachine"));
-//            gui.setTheme(LanternaThemes.getRegisteredTheme("blaster"));
             gui.setTheme(getTheme());
-
             gui.start();
         } finally {
             if (screen != null) {
@@ -107,6 +104,11 @@ public final class App {
                 .getResourceAsStream("jmxviewer-theme.properties")) {
             properties.load(is);
         }
-        return new PropertyTheme(properties);
+        return new PropertyTheme(properties) {
+            @Override
+            public String toString() {
+                return "AppTheme";
+            }
+        };
     }
 }
