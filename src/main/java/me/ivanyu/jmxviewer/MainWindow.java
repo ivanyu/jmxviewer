@@ -19,6 +19,7 @@ import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.gui2.*;
 import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
+import com.sun.tools.attach.VirtualMachineDescriptor;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -37,7 +38,7 @@ final class MainWindow extends BasicWindow {
     private final TextBox valueTextBox;
     private final SplitPanel leftRightPanel;
 
-    MainWindow(final int pid, final String vmDisplayName,
+    MainWindow(final VirtualMachineDescriptor vmDescriptor,
                final MbeanTreeBuilder mbeanTreeBuilder,
                final MbeanAttributeTableBuilder mbeanAttributeTableBuilder) {
         this.mbeanAttributeTableBuilder = mbeanAttributeTableBuilder;
@@ -60,7 +61,7 @@ final class MainWindow extends BasicWindow {
         contentPanel.setLayoutManager(new BorderLayout());
         this.setComponent(contentPanel);
 
-        final Label topLabel = new Label("" + pid + " - " + vmDisplayName);
+        final Label topLabel = new Label("" + vmDescriptor.id() + " - " + vmDescriptor.displayName());
         contentPanel.addComponent(topLabel, BorderLayout.Location.TOP);
 
         final Label bottomLabel = new Label(
