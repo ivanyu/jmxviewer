@@ -6,27 +6,9 @@ import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
 import com.googlecode.lanterna.screen.Screen;
 
-import javax.management.MBeanServerConnection;
-
 final class GUI extends MultiWindowTextGUI {
-    private final int pid;
-    private final String vmDisplayName;
-    private final MBeanServerConnection conn;
-
-    GUI(final Screen screen, final int pid, final String vmDisplayName,
-        final MBeanServerConnection conn) {
+    GUI(final Screen screen) {
         super(screen);
-        this.pid = pid;
-        this.vmDisplayName = vmDisplayName;
-        this.conn = conn;
-    }
-
-    final void start() {
-        final MainWindow mainWindow = new MainWindow(
-                pid, vmDisplayName, new MbeanTreeBuilder(conn),
-                new MbeanAttributeTableBuilder(conn)
-        );
-        addWindowAndWait(mainWindow);
     }
 
     @Override

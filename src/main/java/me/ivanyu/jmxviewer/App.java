@@ -1,6 +1,5 @@
 package me.ivanyu.jmxviewer;
 
-import com.googlecode.lanterna.graphics.AbstractTheme;
 import com.googlecode.lanterna.graphics.PropertyTheme;
 import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.screen.TerminalScreen;
@@ -19,34 +18,19 @@ import java.io.InputStream;
 import java.util.Map;
 import java.util.Properties;
 
-public final class App {
-    private static void printUsageAndExit() {
-        System.err.println("Usage:");
-        System.err.println("app <pid>");
-        System.exit(1);
+public final class App implements AutoCloseable {
+    private final String pid;
+
+    private GUI gui;
+    private Screen screen;
+
+    private App(final String pid) {
+        this.pid = pid;
     }
 
-    private static void errorAndExit(final String message) {
-        System.out.println(message);
-        System.exit(1);
-    }
-
-    public static void main(final String[] args) throws IOException, AttachNotSupportedException {
-        if (args.length != 1) {
-            printUsageAndExit();
-        }
-
-        final String pid = args[0];
-        VirtualMachineDescriptor vmDescriptor = null;
-        final var first = VirtualMachine.list().stream()
-                .filter(vm -> vm.id().equals(pid))
-                .findFirst();
-        if (first.isPresent()) {
-            vmDescriptor = first.get();
-        } else {
-            errorAndExit("Unknown or inaccessible VM " + pid);
-            throw new RuntimeException();  // will never be thrown, just to make the null checker happy
-        }
+    void start() throws IOException, AttachNotSupportedException {
+        startGUI();
+        final VirtualMachineDescriptor vmDescriptor = getSelectedVM();
 
         final VirtualMachine vm = VirtualMachine.attach(vmDescriptor);
         if (!(vm instanceof HotSpotVirtualMachine)) {
@@ -56,8 +40,6 @@ public final class App {
         final HotSpotVirtualMachine hsvm = (HotSpotVirtualMachine) vm;
         hsvm.executeJCmd("ManagementAgent.start_local");
 
-        final String vmDisplayName = vmDescriptor.displayName();
-
         final var jmxUrl = new JMXServiceURL(
                 vm.getAgentProperties().getProperty("com.sun.management.jmxremote.localConnectorAddress"));
         vm.detach();
@@ -65,42 +47,88 @@ public final class App {
         try (final JMXConnector jmxConnector = JMXConnectorFactory.newJMXConnector(jmxUrl, Map.of())) {
             jmxConnector.connect();
             final MBeanServerConnection conn = jmxConnector.getMBeanServerConnection();
-            startGui(pid, vmDisplayName, conn);
+
+            final MainWindow mainWindow = new MainWindow(
+                    vmDescriptor, new MbeanTreeBuilder(conn),
+                    new MbeanAttributeTableBuilder(conn)
+            );
+            gui.addWindowAndWait(mainWindow);
         }
     }
 
-    private static void startGui(final int pid, final String vmDisplayName,
-                                 final MBeanServerConnection conn) throws IOException {
-        final var defaultTerminalFactory = new DefaultTerminalFactory();
-        Screen screen = null;
-        try {
-            final var terminal = defaultTerminalFactory.createTerminal();
-            screen = new TerminalScreen(terminal);
-            screen.startScreen();
-            terminal.setCursorVisible(false);
+    private synchronized void startGUI() throws IOException {
+        final var terminal = new DefaultTerminalFactory().createTerminal();
+        screen = new TerminalScreen(terminal);
+        screen.startScreen();
+        terminal.setCursorVisible(false);
 
-            final GUI gui = new GUI(screen, pid, vmDisplayName, conn);
-            gui.setTheme(getTheme());
-            gui.start();
-        } finally {
-            if (screen != null) {
-                screen.clear();
-                screen.close();
-            }
-        }
-    }
+        this.gui = new GUI(screen);
 
-    private static AbstractTheme getTheme() throws IOException {
+        // Load the theme.
         final var properties = new Properties();
         try (final InputStream is = App.class.getClassLoader()
                 .getResourceAsStream("jmxviewer-theme.properties")) {
             properties.load(is);
         }
-        return new PropertyTheme(properties) {
-            @Override
-            public String toString() {
-                return "AppTheme";
+        this.gui.setTheme(new PropertyTheme(properties));
+    }
+
+    private VirtualMachineDescriptor getSelectedVM() {
+        if (pid == null) {
+            final ProcessSelectionWindow processSelectionWindow = new ProcessSelectionWindow();
+            gui.addWindowAndWait(processSelectionWindow);
+            return processSelectionWindow.selectedVM;
+        } else {
+            final var first = VirtualMachine.list().stream()
+                    .filter(vm -> vm.id().equals(pid))
+                    .findFirst();
+            if (first.isPresent()) {
+                return first.get();
+            } else {
+                errorAndExit("Unknown or inaccessible VM " + pid);
+                throw new RuntimeException();  // will never be thrown, just to make the checker
             }
-        };
+        }
+    }
+
+    private synchronized void closeScreen() {
+        if (this.screen != null) {
+            try {
+                this.screen.close();
+            } catch (final IOException e) {
+                // It's OK to just print the stack trace here,
+                // the app is being shut down at this point already.
+                e.printStackTrace();
+            }
+            this.screen = null;
+        }
+    }
+
+    @Override
+    public void close() throws Exception {
+        closeScreen();
+    }
+
+    private void errorAndExit(final String message) {
+        closeScreen();
+        System.err.println(message);
+        System.exit(1);
+    }
+
+    public static void main(final String[] args) throws Exception {
+        String pid = null;
+        if (args.length == 0) {
+            // keep null
+        } else if (args.length == 1) {
+            pid = args[0];
+        } else {
+            System.err.println("Usage:");
+            System.err.println("java -jar jmxviewer.jar [pid]");
+            System.exit(1);
+        }
+
+        try (final App app = new App(pid)) {
+            app.start();
+        }
     }
 }
