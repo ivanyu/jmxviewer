@@ -36,22 +36,14 @@ public final class App {
             printUsageAndExit();
         }
 
-        final int pid;
-        try {
-            pid = Integer.parseInt(args[0]);
-        } catch (final NumberFormatException e) {
-            printUsageAndExit();
-            throw e;  // make the scope checker happy
-        }
-
+        final String pid = args[0];
         VirtualMachineDescriptor vmDescriptor = null;
-        for (final var d : VirtualMachine.list()) {
-            if (d.id().equals(Integer.toString(pid))) {
-                vmDescriptor = d;
-                break;
-            }
-        }
-        if (vmDescriptor == null) {
+        final var first = VirtualMachine.list().stream()
+                .filter(vm -> vm.id().equals(pid))
+                .findFirst();
+        if (first.isPresent()) {
+            vmDescriptor = first.get();
+        } else {
             errorAndExit("Unknown or inaccessible VM " + pid);
             throw new RuntimeException();  // will never be thrown, just to make the null checker happy
         }
