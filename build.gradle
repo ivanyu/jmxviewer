@@ -1,3 +1,5 @@
+import me.ivanyu.FinalJarTask
+
 plugins {
     id 'java'
     id 'application'
@@ -25,6 +27,7 @@ java {
 }
 
 jar {
+    baseName project.name + '-slim'
     manifest {
         attributes(
                 'Class-Path': configurations.compileClasspath.collect { it.getName() }.join(' '),
@@ -34,6 +37,11 @@ jar {
 }
 
 shadowJar {
+}
+
+task finalJar(type: FinalJarTask) {
+    dependsOn shadowJar
+    from shadowJar.outputs
 }
 
 compileJava {
