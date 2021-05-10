@@ -82,7 +82,7 @@ public final class App implements AutoCloseable {
         // Load the theme.
         final var properties = new Properties();
         try (final InputStream is = App.class.getClassLoader()
-                .getResourceAsStream("jmxviewer-theme.properties")) {
+                .getResourceAsStream("default-theme.properties")) {
             properties.load(is);
         }
         this.gui.setTheme(new PropertyTheme(properties));
