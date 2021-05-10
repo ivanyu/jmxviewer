@@ -20,4 +20,4 @@ clean:
 
 .PHONY: build
 build:
-	./gradlew shadowJar
+	./gradlew finalJar
