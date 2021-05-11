@@ -42,12 +42,19 @@ java {
     targetCompatibility = JavaVersion.VERSION_11
 }
 
+processResources {
+    filesMatching('version.properties') {
+        expand(version: version)
+    }
+}
+
 jar {
     setArchiveBaseName(project.name + '-slim')
     manifest {
         attributes(
                 'Class-Path': configurations.compileClasspath.collect { it.getName() }.join(' '),
-                'Main-Class': mainClassName
+                'Main-Class': mainClassName,
+                'Version': "${project.version}"
         )
     }
 }

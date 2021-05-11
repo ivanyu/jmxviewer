@@ -135,6 +135,12 @@ public final class App implements AutoCloseable {
         if (args.length == 0) {
             // keep null
         } else if (args.length == 1) {
+            if (args[0].equals("-v")) {
+                System.out.println("JMXViewer");
+                System.out.println("Version " + Version.VERSION);
+                System.exit(0);
+            }
+
             pid = args[0];
         } else {
             System.err.println("Usage:");
