@@ -28,7 +28,9 @@ abstract class TreeNode<SELF extends TreeNode<SELF>> {
         this.label = label;
         this.parent = parent;
         if (parent != null) {
-            parent.addChild((SELF) this);
+            @SuppressWarnings("unchecked")
+            final SELF self = (SELF) this;
+            parent.addChild(self);
         }
     }
 
