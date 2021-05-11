@@ -70,6 +70,7 @@ shadowJar {
 task finalJar(type: FinalJarTask) {
     dependsOn shadowJar
     from shadowJar.outputs
+    outputs.file("build/jmxviewer.jar")
 }
 
 compileJava {

@@ -71,7 +71,7 @@ public class FinalJarTask extends DefaultTask {
 
     @TaskAction
     public void run() throws IOException {
-        try (final var os = new FileOutputStream("build/jmxviewer.jar");
+        try (final var os = new FileOutputStream(this.getOutputs().getFiles().getSingleFile());
              final ZipOutputStream zipOs = new ZipOutputStream(os)) {
             final ZipFile inputFile = new ZipFile(this.inputFile);
             final var entries = inputFile.entries();
