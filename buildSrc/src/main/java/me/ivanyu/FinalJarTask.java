@@ -22,11 +22,46 @@ import org.gradle.api.tasks.TaskAction;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class FinalJarTask extends DefaultTask {
+    private final static List<String> PREFIXES_TO_SKIP = List.of(
+            // Exclude Lanterna translations.
+            "multilang/",
+
+            // Exclude everything HTTP- and standalone-related from Jolokia.
+            "org/jolokia/backend/",
+            "org/jolokia/config/",
+            "org/jolokia/detector/",
+            "META-INF/detectors-default",
+            "org/jolokia/discovery/",
+            "org/jolokia/handler/",
+            "org/jolokia/history/",
+            "org/jolokia/http/",
+            "org/jolokia/request/",
+            "org/jolokia/restrictor/",
+
+            // Exclude certain Jolokia utility classes.
+            "org/jolokia/util/Base64Util.class",
+            "org/jolokia/util/DebugStore",
+            "org/jolokia/util/IoUtil.class",
+            "org/jolokia/util/IpChecker.class",
+            "org/jolokia/util/JmxUtil.class",
+            "org/jolokia/util/JolokiaCipher",
+            "org/jolokia/util/JulLogHandler.class",
+            "org/jolokia/util/LogHandler$StdoutLogHandler.class",
+            "org/jolokia/util/LogHandler.class",
+            "org/jolokia/util/MimeTypeUtil.class",
+            "org/jolokia/util/NetworkUtil.class",
+            "org/jolokia/util/QuietLogHandler.class",
+            "org/jolokia/util/RequestType.class",
+            "org/jolokia/util/ServersInfo.class",
+            "org/jolokia/util/UserPasswordCallbackHandler.class"
+    );
+
     private File inputFile = null;
 
     public final FinalJarTask from(DefaultTaskOutputs... sourcePaths) {
@@ -40,13 +75,18 @@ public class FinalJarTask extends DefaultTask {
              final ZipOutputStream zipOs = new ZipOutputStream(os)) {
             final ZipFile inputFile = new ZipFile(this.inputFile);
             final var entries = inputFile.entries();
+
+            entriesloop:
             while (entries.hasMoreElements()) {
                 final ZipEntry entry = entries.nextElement();
                 final String name = entry.getName();
 
-                if (name.startsWith("multilang/")) {
-                    continue;
+                for (final String p : PREFIXES_TO_SKIP) {
+                    if (name.startsWith(p)) {
+                        continue entriesloop;
+                    }
                 }
+
                 if (name.endsWith("-theme.properties") && !name.equals("default-theme.properties")) {
                     continue;
                 }

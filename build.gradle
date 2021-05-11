@@ -53,6 +53,11 @@ jar {
 }
 
 shadowJar {
+    minimize {
+        // Blind exclusion of Jolokia doesn't work, because some classes are referenced dynamically
+        // in the run time. We do point exclusions in FinalJarTask.
+        exclude(dependency('org.jolokia:.*:.*'))
+    }
 }
 
 task finalJar(type: FinalJarTask) {
