@@ -16,10 +16,11 @@
 package me.ivanyu;
 
 import org.gradle.api.DefaultTask;
-import org.gradle.api.internal.tasks.DefaultTaskOutputs;
+import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
 
-import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.List;
@@ -27,7 +28,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
-public class FinalJarTask extends DefaultTask {
+public abstract class FinalJarTask extends DefaultTask {
     private final static List<String> PREFIXES_TO_SKIP = List.of(
             // Exclude Lanterna translations.
             "multilang/",
@@ -62,18 +63,18 @@ public class FinalJarTask extends DefaultTask {
             "org/jolokia/util/UserPasswordCallbackHandler.class"
     );
 
-    private File inputFile = null;
+    @InputFiles
+    public abstract ConfigurableFileCollection getSourceFiles();
 
-    public final FinalJarTask from(DefaultTaskOutputs... sourcePaths) {
-        inputFile = sourcePaths[0].getFiles().getSingleFile();
-        return this;
+    public void sources(final FileCollection sourceFiles) {
+        getSourceFiles().from(sourceFiles);
     }
 
     @TaskAction
     public void run() throws IOException {
         try (final var os = new FileOutputStream(this.getOutputs().getFiles().getSingleFile());
              final ZipOutputStream zipOs = new ZipOutputStream(os)) {
-            final ZipFile inputFile = new ZipFile(this.inputFile);
+            final ZipFile inputFile = new ZipFile(getSourceFiles().getSingleFile());
             final var entries = inputFile.entries();
 
             entriesloop:
